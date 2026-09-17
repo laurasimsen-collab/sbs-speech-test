@@ -93,6 +93,7 @@
       <button id="startBtn" class="primary" type="button">🎤 Start dictation</button>
       <button id="stopBtn" type="button" disabled>🔴 Stop</button>
       <button id="clearBtn" type="button">Clear text</button>
+      <button id="useBtn" type="button">✓ Use text</button>
     </div>
 
     <textarea id="transcript"
@@ -112,6 +113,7 @@
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
   const clearBtn = document.getElementById('clearBtn');
+  const useBtn = document.getElementById('useBtn');
   const transcriptEl = document.getElementById('transcript');
 
   let recognition = null;
@@ -222,6 +224,23 @@
   clearBtn.addEventListener('click', () => {
     transcriptEl.value = '';
     setStatus('Text cleared. Ready to test again.');
+  });
+
+  useBtn.addEventListener('click', () => {
+    const text = transcriptEl.value.trim();
+    if (!text) {
+      setStatus('There is no text to return yet.', 'bad');
+      return;
+    }
+    if (!window.opener) {
+      setStatus('Open this page from the SBS Dictate button for the round-trip test.', 'bad');
+      return;
+    }
+    window.opener.postMessage(
+      { type: 'SBS_DICTATION_RESULT', text: text },
+      '*'
+    );
+    window.close();
   });
 </script>
 </body>
