@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SBS Speech-to-Text Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 760px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: #17324d;
+      background: #f5f8fa;
+    }
+    .card {
+      background: white;
+      border: 1px solid #d7e0e7;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    h1 { margin-top: 0; font-size: 26px; }
+    p { line-height: 1.5; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 18px 0;
+    }
+    button {
+      border: 1px solid #9eb3c3;
+      background: white;
+      color: #17324d;
+      border-radius: 9px;
+      padding: 10px 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.primary {
+      background: #234667;
+      color: white;
+      border-color: #234667;
+    }
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 180px;
+      resize: vertical;
+      padding: 12px;
+      border: 1px solid #bdcad4;
+      border-radius: 9px;
+      font: inherit;
+      line-height: 1.5;
+    }
+    .status {
+      margin: 12px 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #eef4f7;
+      font-size: 14px;
+    }
+    .status.good {
+      background: #edf8f1;
+      color: #276344;
+    }
+    .status.bad {
+      background: #fff1f1;
+      color: #8b2929;
+    }
+    .small {
+      font-size: 13px;
+      color: #5b6f80;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>SBS Speech-to-Text Test</h1>
+    <p>
+      This page is only a proof of concept. It does not save or send the
+      transcript anywhere in this test page.
+    </p>
+
+    <div id="status" class="status">Checking browser support…</div>
+
+    <div class="controls">
+      <button id="startBtn" class="primary" type="button">🎤 Start dictation</button>
+      <button id="stopBtn" type="button" disabled>🔴 Stop</button>
+      <button id="clearBtn" type="button">Clear text</button>
+    </div>
+
+    <textarea id="transcript"
+      placeholder="Your dictated words should appear here…"></textarea>
+
+    <p class="small">
+      Language: Australian English (en-AU). Your browser may ask for
+      microphone permission when you start.
+    </p>
+  </div>
+
+<script>
+  const Recognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  const statusEl = document.getElementById('status');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const transcriptEl = document.getElementById('transcript');
+
+  let recognition = null;
+  let startingText = '';
+  let finalTranscript = '';
+
+  function setStatus(message, type = '') {
+    statusEl.textContent = message;
+    statusEl.className = 'status' + (type ? ' ' + type : '');
+  }
+
+  if (!Recognition) {
+    setStatus(
+      'Speech recognition is not available in this browser. Try this test in Google Chrome.',
+      'bad'
+    );
+    startBtn.disabled = true;
+  } else {
+    setStatus(
+      'Browser speech recognition is available. Press Start dictation to test the microphone.',
+      'good'
+    );
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (!Recognition) return;
+
+    recognition = new Recognition();
+    recognition.lang = 'en-AU';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    startingText = transcriptEl.value || '';
+    finalTranscript = '';
+
+    recognition.onstart = () => {
+      setStatus('Listening… speak now.', 'good');
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    };
+
+    recognition.onresult = (event) => {
+      let interim = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const words = event.results[i][0].transcript;
+
+        if (event.results[i].isFinal) {
+          finalTranscript += words + ' ';
+        } else {
+          interim += words;
+        }
+      }
+
+      const prefix = startingText.trim()
+        ? startingText.trimEnd() + ' '
+        : '';
+
+      transcriptEl.value = prefix + finalTranscript + interim;
+    };
+
+    recognition.onerror = (event) => {
+      const code = event.error || 'unknown';
+      let explanation = 'The browser reported a speech-recognition error.';
+
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
+        explanation =
+          'Microphone or speech-recognition permission was not allowed for this site.';
+      } else if (code === 'network') {
+        explanation =
+          'The browser could not connect to its speech-recognition service.';
+      } else if (code === 'audio-capture') {
+        explanation =
+          'The browser could not access a working microphone.';
+      } else if (code === 'no-speech') {
+        explanation =
+          'No speech was detected.';
+      }
+
+      setStatus('Error: ' + code + '. ' + explanation, 'bad');
+    };
+
+    recognition.onend = () => {
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+
+      if (!statusEl.classList.contains('bad')) {
+        setStatus(
+          transcriptEl.value.trim()
+            ? 'Stopped. Speech-to-text worked.'
+            : 'Stopped. No text was recognised.',
+          transcriptEl.value.trim() ? 'good' : ''
+        );
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (err) {
+      setStatus('Could not start speech recognition: ' + err.message, 'bad');
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (recognition) recognition.stop();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    transcriptEl.value = '';
+    setStatus('Text cleared. Ready to test again.');
+  });
+</script>
+</body>
+</html>
